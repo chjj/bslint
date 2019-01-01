@@ -1,7 +1,7 @@
 {
   "name": "bslint",
-  "version": "5.11.1",
-  "description": "Vendored eslint",
+  "version": "0.0.0",
+  "description": "zero-dependency eslint",
   "keywords": [
     "eslint"
   ],
