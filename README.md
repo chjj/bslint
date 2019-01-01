@@ -1,7 +1,7 @@
 # BSLint
 
-A zero-dependency package which vendors [eslint] and all of its dependencies
-for security and simplicity. In other words, it's eslint without the BS (or
+A zero-dependency package which vendors [ESLint] and all of its dependencies
+for security and simplicity. In other words, it's ESLint without the BS (or
 with it, depending on your point of view).
 
 BSLint makes use of the fact that NPM allows non-toplevel `node_modules`
@@ -78,3 +78,4 @@ SOFTWARE.
 ```
 
 [eslint]: https://eslint.org/
+[bcoin]: https://github.com/bcoin-org
