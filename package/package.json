@@ -1,0 +1,9 @@
+{
+  "name": "bslint",
+  "private": true,
+  "version": "0.0.0",
+  "main": "./index.js",
+  "dependencies": {
+    "eslint": "latest"
+  }
+}
