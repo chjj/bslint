@@ -4,9 +4,8 @@ A zero-dependency package which vendors [ESLint][eslint] and all of its
 dependencies for security and simplicity. In other words, it's ESLint without
 the BS (or with it, depending on your point of view).
 
-BSLint makes use of the fact that NPM allows non-toplevel `node_modules`
-directories to be packaged. It follows the same versioning scheme as eslint:
-e.g. `bslint@5.11.1` should be equivalent to `eslint@5.11.1`.
+BSLint follows the same versioning scheme as eslint: e.g. `bslint@5.11.1`
+should be equivalent to `eslint@5.11.1`.
 
 ## Reasoning
 
@@ -16,7 +15,7 @@ cryptocurrency project whose devs and users are particularly target-able for
 certain kinds of package attacks like the one seen on the `event-stream`
 package. As such, we seek to minimize the NPM attack surface.
 
-### Why not use shrinkwrap and/or bundleDependencies?
+### Why not use shrinkwrap?
 
 Bundling the dependencies directly allows one to clone directly from github
 without having to run `npm install`. We are aiming to minimize reliance on NPM

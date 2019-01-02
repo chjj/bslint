@@ -1,0 +1,329 @@
+#!/usr/bin/env node
+
+'use strict';
+
+const assert = require('assert');
+const cp = require('child_process');
+const fs = require('./fs');
+const path = require('path');
+
+const {
+  basename,
+  dirname,
+  isAbsolute,
+  join,
+  relative,
+  resolve
+} = path;
+
+/*
+ * Constants
+ */
+
+// ./
+const ROOT = resolve(__dirname, '..');
+const INDEX_JS = join(ROOT, 'index.js');
+const PACKAGE_JSON = join(ROOT, 'package.json');
+
+// ./bin
+const BIN = join(ROOT, 'bin');
+
+// ./.package
+const PACKAGE = join(ROOT, '.package');
+const PACKAGE_LOCK = join(PACKAGE, 'package-lock.json');
+const PACKAGE_MODULES = join(PACKAGE, 'node_modules');
+
+// ./node_modules
+const NODE_MODULES = join(ROOT, 'node_modules');
+
+const BIN_FILES = [
+  ['eslint', '../node_modules/eslint/bin/eslint.js']
+];
+
+/*
+ * Build
+ */
+
+async function exec(cwd, args) {
+  assert(typeof cwd === 'string');
+  assert(Array.isArray(args));
+  assert(args.length >= 1);
+
+  const file = args.shift();
+  const options = { cwd };
+
+  return new Promise((resolve, reject) => {
+    const cb = (err, stdout, stderr) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve([stdout, stderr]);
+    };
+
+    try {
+      cp.execFile(file, args, options, cb);
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
+async function traverse(path, cb) {
+  assert(typeof path === 'string');
+  assert(typeof cb === 'function');
+
+  const root = resolve(path);
+  const stat = await fs.lstatTry(root);
+
+  if (!stat || !stat.isDirectory())
+    return;
+
+  await (async function next(path) {
+    const stat = await fs.lstat(path);
+    const file = relative(root, path);
+
+    if (stat.isDirectory()) {
+      await cb(file, stat);
+
+      for (const name of (await fs.readdir(path)))
+        await next(join(path, name));
+
+      return;
+    }
+
+    if (stat.isFile() || stat.isSymbolicLink()) {
+      await cb(file, stat);
+      return;
+    }
+  })(root);
+}
+
+async function clean(root) {
+  assert(typeof root === 'string');
+  assert(isAbsolute(root));
+
+  const bins = [];
+  const links = [];
+
+  await traverse(root, async (file, stat) => {
+    const name = basename(file);
+    const path = join(root, file);
+
+    if (stat.isDirectory()) {
+      if (name === '.bin')
+        bins.push(path);
+      return;
+    }
+
+    if (!stat.isFile()) {
+      links.push(path);
+      return;
+    }
+
+    if (name === 'package-lock.json' || name === 'yarn.lock') {
+      await fs.unlink(path);
+      return;
+    }
+
+    if (name !== 'package.json')
+      return;
+
+    const text = await fs.readFile(path, 'utf8');
+    const json = JSON.parse(text);
+
+    if (json == null || typeof json !== 'object')
+      return;
+
+    let changed = false;
+
+    for (const key of Object.keys(json)) {
+      if (key[0] === '_') {
+        delete json[key];
+        changed = true;
+      }
+    }
+
+    // NPM gets confused by these when re-packaging:
+    if (json.bundleDependencies != null) {
+      delete json.bundleDependencies;
+      changed = true;
+    }
+
+    if (json.bundledDependencies != null) {
+      delete json.bundledDependencies;
+      changed = true;
+    }
+
+    if (json.files != null) {
+      delete json.files;
+      changed = true;
+    }
+
+    const nm = join(dirname(path), 'node_modules');
+
+    if (await fs.exists(nm)) {
+      const list = await fs.readdir(nm);
+
+      json.bundledDependencies = list.filter(f => f !== '.bin');
+      json.bundledDependencies.sort();
+
+      changed = true;
+    }
+
+    if (json.dependencies != null) {
+      delete json.dependencies;
+      changed = true;
+    }
+
+    if (json.optionalDependencies != null) {
+      delete json.optionalDependencies;
+      changed = true;
+    }
+
+    if (json.peerDependencies != null) {
+      delete json.peerDependencies;
+      changed = true;
+    }
+
+    if (json.devDependencies != null) {
+      delete json.devDependencies;
+      changed = true;
+    }
+
+    if (json.bin != null) {
+      delete json.bin;
+      changed = true;
+    }
+
+    if (json.man != null) {
+      delete json.man;
+      changed = true;
+    }
+
+    if (json.directories != null) {
+      delete json.directories;
+      changed = true;
+    }
+
+    if (json.scripts != null) {
+      delete json.scripts;
+      changed = true;
+    }
+
+    if (json.preferGlobal != null) {
+      delete json.preferGlobal;
+      changed = true;
+    }
+
+    if (json.publishConfig != null) {
+      delete json.publishConfig;
+      changed = true;
+    }
+
+    if (json.deprecated != null) {
+      delete json.deprecated;
+      changed = true;
+    }
+
+    if (!changed)
+      return;
+
+    console.log(`Cleaning package.json: "${path}".`);
+
+    await fs.writeFile(path, JSON.stringify(json, null, 2) + '\n');
+  });
+
+  for (const path of bins) {
+    console.log(`Removing .bin directory: "${path}".`);
+    await fs.rimraf(path);
+  }
+
+  if (links.length > 0) {
+    console.log('Warning: found symbolic links:');
+    for (const link of links)
+      console.log('  ' + link);
+  }
+}
+
+function binPointer(location) {
+  assert(typeof location === 'string');
+
+  let out = '';
+
+  out += '#!/usr/bin/env node\n';
+  out += '\n';
+  out += jsPointer(location);
+
+  return out;
+}
+
+function jsPointer(location) {
+  assert(typeof location === 'string');
+
+  let out = '';
+
+  out += '\'use strict\';\n';
+  out += '\n';
+  out += `module.exports = require(${JSON.stringify(location)});\n`;
+
+  return out;
+}
+
+async function main() {
+  // Fresh install.
+  /*
+  await fs.rimraf(PACKAGE_LOCK);
+  await fs.rimraf(PACKAGE_MODULES);
+  await fs.mkdirp(PACKAGE_MODULES, 0o755);
+
+  await exec(PACKAGE, ['npm', 'install',
+                       '--production',
+                       '--no-shrinkwrap',
+                       '--no-package-lock']);
+  */
+
+  // Clean up NPM crap.
+  await clean(PACKAGE_MODULES);
+  await fs.rimraf(PACKAGE_LOCK);
+
+  // Move node_modules to vendor directory.
+  await fs.rimraf(NODE_MODULES);
+  await fs.rename(PACKAGE_MODULES, NODE_MODULES);
+
+  // Create our index file which points to eslint.
+  {
+    const path = INDEX_JS;
+    const code = jsPointer('./node_modules/eslint');
+
+    await fs.writeFile(path, code, { mode: 0o644 });
+  }
+
+  // Create pointers in the bin directory.
+  await fs.rimraf(BIN);
+  await fs.mkdirp(BIN, 0o755);
+
+  for (const [name, location] of BIN_FILES) {
+    const path = join(BIN, name);
+    const code = binPointer(location);
+
+    await fs.writeFile(path, code, { mode: 0o755 });
+  }
+
+  {
+    const text = await fs.readFile(PACKAGE_JSON, 'utf8');
+    const json = JSON.parse(text);
+
+    json.bundledDependencies = await fs.readdir(NODE_MODULES);
+    json.bundledDependencies.sort();
+
+    const out = JSON.stringify(json, null, 2) + '\n';
+
+    await fs.writeFile(PACKAGE_JSON, out, { mode: 0o644 });
+  }
+}
+
+main().catch((err) => {
+  console.error(err.stack + '\n');
+  process.exit(1);
+});

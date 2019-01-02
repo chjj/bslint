@@ -1,3 +1,3 @@
 'use strict';
 
-module.exports = require("./vendor/node_modules/eslint");
+module.exports = require("./node_modules/eslint");
