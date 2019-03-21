@@ -262,7 +262,7 @@ async function clean(root) {
 
   for (const path of bins) {
     console.log(`Removing .bin directory: "${path}".`);
-    await fs.rimraf(path);
+    await fs.remove(path);
   }
 
   if (links.length > 0) {
@@ -298,20 +298,25 @@ function jsPointer(location) {
 
 async function main() {
   // Fresh install.
-  await fs.rimraf(PACKAGE_LOCK);
-  await fs.rimraf(PACKAGE_MODULES);
-  await fs.mkdirp(PACKAGE_MODULES, 0o755);
+  await fs.remove(PACKAGE_LOCK);
+  await fs.remove(PACKAGE_MODULES);
 
-  await exec(PACKAGE, ['npm', 'install',
-                       '--production',
-                       '--no-package-lock']);
+  if (process.argv[2] === '--npm') {
+    await fs.mkdirp(PACKAGE_MODULES, 0o755);
+
+    await exec(PACKAGE, ['npm', 'install',
+                         '--production',
+                         '--no-package-lock']);
+  } else {
+    await fs.copy(process.argv[2], PACKAGE_MODULES);
+  }
 
   // Clean up NPM crap.
   await clean(PACKAGE_MODULES);
-  await fs.rimraf(PACKAGE_LOCK);
+  await fs.remove(PACKAGE_LOCK);
 
   // Move node_modules to vendor directory.
-  await fs.rimraf(NODE_MODULES);
+  await fs.remove(NODE_MODULES);
   await fs.rename(PACKAGE_MODULES, NODE_MODULES);
 
   // Create our index file which points to eslint.
@@ -323,7 +328,7 @@ async function main() {
   }
 
   // Create pointers in the bin directory.
-  await fs.rimraf(BIN);
+  await fs.remove(BIN);
   await fs.mkdirp(BIN, 0o755);
 
   for (const [name, location] of BIN_FILES) {
@@ -338,7 +343,6 @@ async function main() {
     const json = JSON.parse(text);
 
     json.bundledDependencies = await readDeps(NODE_MODULES);
-    json.bundledDependencies.sort();
 
     const out = JSON.stringify(json, null, 2) + '\n';
 
