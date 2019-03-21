@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "main": "./index.js",
   "dependencies": {
-    "eslint": "latest"
+    "eslint": "latest",
+    "babel-eslint": "latest"
   }
 }
