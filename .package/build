@@ -107,14 +107,14 @@ async function readDeps(path) {
   const out = [];
 
   for (const name of list) {
-    if (name === '.bin')
+    if (name[0] === '.')
       continue;
 
     if (name[0] === '@') {
       const list2 = await fs.readdir(join(path, name));
 
       for (const name2 of list2) {
-        if (name2 === '.bin')
+        if (name2[0] === '.')
           continue;
 
         out.push(`${name}/${name2}`);
@@ -305,7 +305,7 @@ async function main() {
     await fs.mkdirp(PACKAGE_MODULES, 0o755);
 
     await exec(PACKAGE, ['npm', 'install',
-                         '--production',
+                         '--omit=dev',
                          '--no-package-lock']);
   } else {
     await fs.copy(process.argv[2], PACKAGE_MODULES);
