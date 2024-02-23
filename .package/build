@@ -201,6 +201,11 @@ async function clean(root) {
       changed = true;
     }
 
+    if (json.dependencies != null) {
+      delete json.dependencies;
+      changed = true;
+    }
+
     if (json.files != null) {
       delete json.files;
       changed = true;
@@ -210,11 +215,7 @@ async function clean(root) {
 
     if (await fs.exists(nm)) {
       json.bundledDependencies = await readDeps(nm);
-      changed = true;
-    }
-
-    if (json.dependencies != null) {
-      delete json.dependencies;
+      json.dependencies = await resolveDeps(nm, json.bundledDependencies);
       changed = true;
     }
 
